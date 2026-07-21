@@ -11,6 +11,19 @@ import rehypePrettyCode from "rehype-pretty-code"; // 代码高亮
 import rehypeStringify from "rehype-stringify";    // HTML AST → 字符串
 import readingTime from "reading-time";
 
+// 把 reading-time 的英文输出转成中文
+function formatReadingTime(text: string): string {
+  // text 格式: "3 min read" 或 "1 min read" 或 "< 1 min read"
+  const match = text.match(/(\d+)/);
+  if (!match) return "不到 1 分钟";
+  const mins = parseInt(match[1]);
+  if (mins < 1) return "不到 1 分钟";
+  if (mins < 60) return `${mins} 分钟`;
+  const hours = Math.floor(mins / 60);
+  const remainMins = mins % 60;
+  return remainMins > 0 ? `${hours} 小时 ${remainMins} 分钟` : `${hours} 小时`;
+}
+
 // 支持的文件格式
 const SUPPORTED_EXTENSIONS = [".md", ".mdx", ".txt"];
 // 定义文章元数据的类型（不含正文）
@@ -20,7 +33,7 @@ export interface PostMeta {
   date: string;          // 发布日期
   excerpt: string;       // 摘要
   tags: string[];        // 标签数组
-  readingTime: string;   // 阅读时间，如 "1 min read"
+  readingTime: string;   // 阅读时间，如 "3 分钟"
 }
 
 // 定义完整文章的类型（含正文 HTML）
@@ -65,7 +78,7 @@ export function getAllPosts(): PostMeta[] {
         date: data.date,
         excerpt: data.excerpt,
         tags: data.tags || [],  // 如果没写 tags，返回空数组
-        readingTime: stats.text,
+        readingTime: formatReadingTime(stats.text),
       };
     });
 
@@ -135,7 +148,7 @@ export async function getPostBySlug(slug: string): Promise<Post> {
     date: data.date ?? new Date().toISOString().split("T")[0],
     excerpt: data.excerpt ?? (isPlainText ? content.slice(0, 120) + "..." : ""),
     tags: data.tags ?? [],
-    readingTime: stats.text,
+    readingTime: formatReadingTime(stats.text),
     contentHtml,
   };
 }
