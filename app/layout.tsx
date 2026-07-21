@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
 import Providers from "@/components/Providers";
 import { ClickCounterProvider } from "@/components/ClickCounter";
 import ConfettiEffect from "@/components/ConfettiEffect";
+import MusicPlayer from "@/components/MusicPlayer";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 
@@ -40,6 +42,7 @@ const navLinks = [
   { href: "/gallery", label: "相册" },
   { href: "/video", label: "视频" },
   { href: "/roast", label: "吐槽板" },
+  { href: "/drive", label: "云盘" },
   { href: "/about", label: "关于" },
 ];
 
@@ -95,6 +98,8 @@ export default function RootLayout({
         </footer>
         </ClickCounterProvider>
         <Analytics />
+        <SpeedInsights />
+        <MusicPlayer />
         </Providers>
       </body>
     </html>

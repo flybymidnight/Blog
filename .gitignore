@@ -28,6 +28,10 @@
 /data/
 /public/uploads/
 
+# environment variables
+.env.local
+.env.production
+
 # debug
 npm-debug.log*
 yarn-debug.log*
