@@ -31,3 +31,42 @@ body {
 .giscus {
   margin-top: 2rem;
 }
+
+/* 代码块样式增强 */
+pre[data-theme="github-dark"] {
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  overflow-x: auto;
+}
+
+code[data-theme="github-dark"] {
+  font-size: 0.875rem;
+  line-height: 1.7;
+}
+
+/* 数学公式样式 */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.5rem 0;
+}
+
+/* 任务列表样式 */
+input[type="checkbox"] {
+  margin-right: 0.5rem;
+}
+
+/* 表格样式增强 */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-zinc-200, #e4e4e7);
+}
+
+.dark th, .dark td {
+  border-color: var(--color-zinc-700, #3f3f46);
+}

@@ -1,9 +1,18 @@
-import fs from "fs";//node.js中读写文件模块
-import path from "path";//Node.js 内置模块，用来处理文件路径（拼接、解析）
+import fs from "fs";
+import path from "path";
 import matter from "gray-matter";
-import { remark } from "remark";
-import html from "remark-html";
+import { unified } from "unified";
+import remarkParse from "remark-parse";       // 解析 Markdown
+import remarkGfm from "remark-gfm";          // 表格、任务列表、删除线
+import remarkMath from "remark-math";         // 数学公式语法
+import remarkRehype from "remark-rehype";     // Markdown AST → HTML AST
+import rehypeKatex from "rehype-katex";       // 数学公式渲染
+import rehypePrettyCode from "rehype-pretty-code"; // 代码高亮
+import rehypeStringify from "rehype-stringify";    // HTML AST → 字符串
 import readingTime from "reading-time";
+
+// 支持的文件格式
+const SUPPORTED_EXTENSIONS = [".md", ".mdx", ".txt"];
 // 定义文章元数据的类型（不含正文）
 export interface PostMeta {
   slug: string;          // URL 标识，如 "hello_world"
@@ -31,10 +40,13 @@ export function getAllPosts(): PostMeta[] {
 
   // 2. 过滤出 .md 文件，逐个解析
   const allPostsData = fileNames
-    .filter((fileName) => fileName.endsWith(".md"))
+    .filter((fileName) => {
+      const ext = path.extname(fileName).toLowerCase();
+      return SUPPORTED_EXTENSIONS.includes(ext);
+    })
     .map((fileName) => {
-      // 文件名 → slug（去掉 .md 后缀）
-      const slug = fileName.replace(/\.md$/, "");
+      const ext = path.extname(fileName).toLowerCase();
+      const slug = fileName.replace(/\.(md|mdx|txt)$/, "");
 
       // 读取文件完整内容
       const fullPath = path.join(postsDirectory, fileName);
@@ -67,36 +79,62 @@ export function getAllPosts(): PostMeta[] {
 export function getAllSlugs(): string[] {
   const fileNames = fs.readdirSync(postsDirectory);
   return fileNames
-    .filter((fileName) => fileName.endsWith(".md"))
-    .map((fileName) => fileName.replace(/\.md$/, ""));
+    .filter((fileName) => {
+      const ext = path.extname(fileName).toLowerCase();
+      return SUPPORTED_EXTENSIONS.includes(ext);
+    })
+    .map((fileName) => fileName.replace(/\.(md|mdx|txt)$/, ""));
 }
 
 /**
  * 根据 slug 获取单篇文章完整数据（详情页用）
  */
 export async function getPostBySlug(slug: string): Promise<Post> {
-  // 拼接文件路径
-  const fullPath = path.join(postsDirectory, `${slug}.md`);
+  // 尝试按优先级查找文件：.md > .mdx > .txt
+  let fullPath = "";
+  for (const ext of SUPPORTED_EXTENSIONS) {
+    const testPath = path.join(postsDirectory, `${slug}${ext}`);
+    if (fs.existsSync(testPath)) {
+      fullPath = testPath;
+      break;
+    }
+  }
+  if (!fullPath) {
+    throw new Error(`找不到文章: ${slug}`);
+  }
 
-  // 读取文件
+  const ext = path.extname(fullPath).toLowerCase();
   const fileContents = fs.readFileSync(fullPath, "utf8");
 
-  // 分离 frontmatter（data）和正文（content）
-  const { data, content } = matter(fileContents);
+  // 纯文本文件不需要解析 frontmatter
+  const isPlainText = ext === ".txt";
+  const data = isPlainText ? {} : matter(fileContents).data;
+  const content = isPlainText ? fileContents : matter(fileContents).content;
 
-  // 把 Markdown 正文转成 HTML
-  const processedContent = await remark().use(html).process(content);
-  const contentHtml = processedContent.toString();
+  // 构建完整的 unified 处理管道
+  // Markdown → remark 解析 → remark 插件 → remark-rehype → rehype 插件 → HTML 字符串
+  const result = await unified()
+    .use(remarkParse)                    // 1. 解析 Markdown 为 AST
+    .use(remarkGfm)                      // 2. GFM：表格、任务列表、删除线
+    .use(remarkMath)                     // 3. 数学公式语法识别
+    .use(remarkRehype)                   // 4. Markdown AST → HTML AST
+    .use(rehypeKatex)                    // 5. 数学公式渲染（KaTeX）
+    .use(rehypePrettyCode, {             // 6. 代码语法高亮（Shiki）
+      theme: "github-dark",
+      keepBackground: false,
+    })
+    .use(rehypeStringify)                // 7. HTML AST → 字符串
+    .process(content);
 
-  // 计算阅读时间
+  const contentHtml = result.toString();
   const stats = readingTime(content);
 
   return {
     slug,
-    title: data.title,
-    date: data.date,
-    excerpt: data.excerpt,
-    tags: data.tags || [],
+    title: data.title ?? slug,
+    date: data.date ?? new Date().toISOString().split("T")[0],
+    excerpt: data.excerpt ?? (isPlainText ? content.slice(0, 120) + "..." : ""),
+    tags: data.tags ?? [],
     readingTime: stats.text,
     contentHtml,
   };

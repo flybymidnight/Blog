@@ -6,6 +6,8 @@ import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
 import Providers from "@/components/Providers";
 import { ClickCounterProvider } from "@/components/ClickCounter";
+import ConfettiEffect from "@/components/ConfettiEffect";
+import "katex/dist/katex.min.css";
 import "./globals.css";
 
 // ===== 1. 字体加载 =====
@@ -37,6 +39,7 @@ const navLinks = [
   { href: "/blog", label: "文章" },
   { href: "/gallery", label: "相册" },
   { href: "/video", label: "视频" },
+  { href: "/roast", label: "吐槽板" },
   { href: "/about", label: "关于" },
 ];
 
@@ -56,6 +59,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
         <Providers>
         <ClickCounterProvider>
+        <ConfettiEffect />
         {/* ===== 导航栏 ===== */}
         <header className="sticky top-0 z-50 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-sm">
           <nav className="max-w-3xl mx-auto px-6 h-16 flex items-center justify-between">

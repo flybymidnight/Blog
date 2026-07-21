@@ -24,6 +24,10 @@
 .DS_Store
 *.pem
 
+# blog data (comments, uploads)
+/data/
+/public/uploads/
+
 # debug
 npm-debug.log*
 yarn-debug.log*
