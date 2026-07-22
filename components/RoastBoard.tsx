@@ -12,6 +12,7 @@ interface Comment {
   parentId?: string;
   x?: number;
   y?: number;
+  location?: string;
 }
 
 export default function RoastBoard() {
@@ -21,6 +22,8 @@ export default function RoastBoard() {
   const [form, setForm] = useState({ author: "", content: "", imageUrl: "" });
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [adminPassword, setAdminPassword] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // 加载评论
@@ -38,6 +41,34 @@ export default function RoastBoard() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // 管理员登录
+  const handleAdminLogin = async () => {
+    if (!adminPassword.trim()) return;
+    try {
+      const res = await fetch("/api/drive/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: adminPassword }),
+      });
+      const data = await res.json();
+      if (data.valid) setIsAdmin(true);
+    } catch {}
+  };
+
+  // 删除评论
+  const handleDeleteComment = async (id: string) => {
+    if (!confirm("确定删除这条评论？")) return;
+    try {
+      await fetch("/api/comments", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, password: adminPassword }),
+      });
+      fetchComments();
+      setSelectedId(null);
+    } catch {}
   };
 
   // 上传图片
@@ -93,7 +124,7 @@ export default function RoastBoard() {
   // 格式化时间
   const formatTime = (ts: number) => {
     const d = new Date(ts);
-    return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${d.getMinutes().toString().padStart(2, "0")}`;
+    return `${d.getFullYear()}/${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getDate().toString().padStart(2, "0")} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
   };
 
   if (loading) {
@@ -133,7 +164,7 @@ export default function RoastBoard() {
           >
             <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-lg p-3 border border-zinc-200 dark:border-zinc-700 hover:shadow-xl transition-shadow">
               <p className="text-xs font-bold text-purple-600 dark:text-purple-400 mb-1">
-                {comment.author}
+                {comment.author || "💬"}
               </p>
               <p className="text-sm text-zinc-700 dark:text-zinc-300 line-clamp-3">
                 {comment.content}
@@ -186,9 +217,9 @@ export default function RoastBoard() {
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h3 className="font-bold text-lg text-purple-600 dark:text-purple-400">
-                      {selected.author}
+                      {selected.author || "匿名吐槽"}
                     </h3>
-                    <p className="text-xs text-zinc-400">{formatTime(selected.createdAt)}</p>
+                    <p className="text-xs text-zinc-400">{formatTime(selected.createdAt)} · {selected.location || "未知"}</p>
                   </div>
                   <button
                     onClick={() => setSelectedId(null)}
@@ -216,7 +247,7 @@ export default function RoastBoard() {
                     <h4 className="text-sm font-bold mb-3 text-zinc-500">回复</h4>
                     {getReplies(selected.id).map((reply) => (
                       <div key={reply.id} className="ml-4 mb-3 pl-3 border-l-2 border-purple-200 dark:border-purple-800">
-                        <p className="text-xs font-bold text-purple-500">{reply.author}</p>
+                        <p className="text-xs font-bold text-purple-500">{reply.author || "匿名"}</p>
                         <p className="text-sm text-zinc-700 dark:text-zinc-300">{reply.content}</p>
                         {reply.image && (
                           <img src={reply.image} alt="" className="rounded-lg mt-1 max-w-xs" />
@@ -226,13 +257,23 @@ export default function RoastBoard() {
                   </div>
                 )}
 
-                {/* 回复按钮 */}
-                <button
-                  onClick={() => setReplyTo(selected.id)}
-                  className="text-sm text-purple-500 hover:text-purple-700 dark:hover:text-purple-300"
-                >
-                  💬 回复这条吐槽
-                </button>
+                {/* 回复按钮 + 管理员删除 */}
+                <div className="flex items-center gap-3 mt-4">
+                  <button
+                    onClick={() => setReplyTo(selected.id)}
+                    className="text-sm text-purple-500 hover:text-purple-700 dark:hover:text-purple-300"
+                  >
+                    💬 回复这条吐槽
+                  </button>
+                  {isAdmin && (
+                    <button
+                      onClick={() => handleDeleteComment(selected.id)}
+                      className="text-sm text-red-400 hover:text-red-600"
+                    >
+                      🗑️ 删除
+                    </button>
+                  )}
+                </div>
               </div>
             </motion.div>
           </motion.div>
@@ -312,6 +353,25 @@ export default function RoastBoard() {
         >
           {replyTo ? "发送回复" : "发射吐槽 🚀"}
         </button>
+      </div>
+
+      {/* 管理员入口 */}
+      <div className="max-w-2xl mx-auto mt-4 text-center">
+        {isAdmin ? (
+          <p className="text-xs text-zinc-400">🔑 管理员模式已开启（点击评论可删除）</p>
+        ) : (
+          <div className="flex items-center justify-center gap-2">
+            <input
+              type="password"
+              placeholder="管理密码"
+              value={adminPassword}
+              onChange={(e) => setAdminPassword(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleAdminLogin()}
+              className="px-3 py-1 text-xs rounded-lg border border-zinc-300 dark:border-zinc-700 bg-transparent w-32"
+            />
+            <button onClick={handleAdminLogin} className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">🔑</button>
+          </div>
+        )}
       </div>
     </>
   );

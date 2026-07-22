@@ -1,53 +1,38 @@
-import fs from "fs";
-import path from "path";
-
-// 评论数据目录
-const DATA_DIR = path.join(process.cwd(), "data");
-const COMMENTS_FILE = path.join(DATA_DIR, "roast-board.json");
+import redis from "./redis";
 
 export interface Comment {
   id: string;
-  content: string;        // 评论文字
-  image?: string;         // 图片 URL（可选）
-  author: string;         // 昵称
-  createdAt: number;      // 时间戳
-  parentId?: string;      // 回复的评论 ID（可选）
-  x?: number;             // 漂浮位置 X（%）
-  y?: number;             // 漂浮位置 Y（%）
-  ip?: string;            // 评论者 IP
-  location?: string;      // 大概位置（城市, 国家）
+  content: string;
+  image?: string;
+  author: string;
+  createdAt: number;
+  parentId?: string;
+  x?: number;
+  y?: number;
+  ip?: string;
+  location?: string;
 }
 
-// 确保数据目录存在
-function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-}
+const COMMENTS_KEY = "blog:roast:comments";
 
 // 读取所有评论
-export function getComments(): Comment[] {
-  ensureDataDir();
-  if (!fs.existsSync(COMMENTS_FILE)) {
-    return [];
-  }
+export async function getComments(): Promise<Comment[]> {
   try {
-    const data = fs.readFileSync(COMMENTS_FILE, "utf8");
-    return JSON.parse(data);
+    const data = await redis.get<Comment[]>(COMMENTS_KEY);
+    return data || [];
   } catch {
     return [];
   }
 }
 
 // 保存评论
-export function saveComments(comments: Comment[]) {
-  ensureDataDir();
-  fs.writeFileSync(COMMENTS_FILE, JSON.stringify(comments, null, 2));
+async function saveComments(comments: Comment[]) {
+  await redis.set(COMMENTS_KEY, JSON.stringify(comments));
 }
 
 // 添加评论
-export function addComment(comment: Omit<Comment, "id" | "createdAt" | "x" | "y">): Comment {
-  const comments = getComments();
+export async function addComment(comment: Omit<Comment, "id" | "createdAt" | "x" | "y">): Promise<Comment> {
+  const comments = await getComments();
   const newComment: Comment = {
     ...comment,
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
@@ -56,6 +41,15 @@ export function addComment(comment: Omit<Comment, "id" | "createdAt" | "x" | "y"
     y: 5 + Math.random() * 75,
   };
   comments.push(newComment);
-  saveComments(comments);
+  await saveComments(comments);
   return newComment;
+}
+
+// 删除评论（管理后台用）
+export async function deleteComment(id: string): Promise<boolean> {
+  const comments = await getComments();
+  const filtered = comments.filter((c) => c.id !== id);
+  if (filtered.length === comments.length) return false;
+  await saveComments(filtered);
+  return true;
 }
