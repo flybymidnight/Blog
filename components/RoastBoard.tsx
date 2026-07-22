@@ -92,7 +92,7 @@ export default function RoastBoard() {
   // 提交评论
   const handleSubmit = async () => {
     if (!form.content.trim()) return;
-    const author = form.author.trim() || "匿名用户";
+    const author = form.author.trim() || "";
     try {
       const res = await fetch("/api/comments", {
         method: "POST",
@@ -104,13 +104,16 @@ export default function RoastBoard() {
           parentId: replyTo || undefined,
         }),
       });
+      const data = await res.json();
       if (res.ok) {
         setForm({ author: form.author, content: "", imageUrl: "" });
         setReplyTo(null);
         fetchComments();
+      } else {
+        alert(data.error || "发送失败");
       }
     } catch (err) {
-      console.error("评论失败", err);
+      alert("网络错误，请重试");
     }
   };
 

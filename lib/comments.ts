@@ -15,19 +15,39 @@ export interface Comment {
 
 const COMMENTS_KEY = "blog:roast:comments";
 
+// 内存缓存（Redis 不可用时的 fallback）
+let memoryCache: Comment[] | null = null;
+
+// 检查 Redis 是否可用
+async function isRedisAvailable(): Promise<boolean> {
+  try {
+    await redis.ping();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // 读取所有评论
 export async function getComments(): Promise<Comment[]> {
   try {
-    const data = await redis.get<Comment[]>(COMMENTS_KEY);
-    return data || [];
-  } catch {
-    return [];
-  }
+    if (await isRedisAvailable()) {
+      const data = await redis.get<Comment[]>(COMMENTS_KEY);
+      memoryCache = data || [];
+      return memoryCache;
+    }
+  } catch {}
+  return memoryCache || [];
 }
 
 // 保存评论
 async function saveComments(comments: Comment[]) {
-  await redis.set(COMMENTS_KEY, JSON.stringify(comments));
+  memoryCache = comments;
+  try {
+    if (await isRedisAvailable()) {
+      await redis.set(COMMENTS_KEY, JSON.stringify(comments));
+    }
+  } catch {}
 }
 
 // 添加评论
@@ -45,7 +65,7 @@ export async function addComment(comment: Omit<Comment, "id" | "createdAt" | "x"
   return newComment;
 }
 
-// 删除评论（管理后台用）
+// 删除评论
 export async function deleteComment(id: string): Promise<boolean> {
   const comments = await getComments();
   const filtered = comments.filter((c) => c.id !== id);

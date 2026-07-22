@@ -9,6 +9,7 @@ import Providers from "@/components/Providers";
 import { ClickCounterProvider } from "@/components/ClickCounter";
 import ConfettiEffect from "@/components/ConfettiEffect";
 import MusicPlayer from "@/components/MusicPlayer";
+import BackToTop from "@/components/BackToTop";
 import { getMusicFiles } from "@/lib/music";
 import "katex/dist/katex.min.css";
 import "./globals.css";
@@ -101,6 +102,7 @@ export default function RootLayout({
         <Analytics />
         <SpeedInsights />
         <MusicPlayer playlist={getMusicFiles()} />
+        <BackToTop />
         </Providers>
       </body>
     </html>

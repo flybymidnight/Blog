@@ -15,11 +15,13 @@ export default function MusicPlayer({ playlist }: MusicPlayerProps) {
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [hasInteracted, setHasInteracted] = useState(false);
+  const hasAutoPlayed = useRef(false); // 是否已经自动播放过
 
   const getDisplayName = (filename: string) => filename.replace(/\.[^.]+$/, "");
 
   const togglePlay = () => {
     if (!audioRef.current) return;
+    hasAutoPlayed.current = true; // 用户手动操作，阻止自动播放
     if (isPlaying) { audioRef.current.pause(); }
     else { audioRef.current.play().catch(() => {}); }
     setIsPlaying(!isPlaying);
@@ -46,10 +48,13 @@ export default function MusicPlayer({ playlist }: MusicPlayerProps) {
     }
   }, [current]);
 
-  // 监听用户第一次点击页面，触发自动播放
+  // 监听用户第一次点击页面，触发自动播放（仅一次）
   useEffect(() => {
+    if (hasAutoPlayed.current) return;
+
     const tryPlay = () => {
-      if (audioRef.current && !isPlaying) {
+      if (audioRef.current && !hasAutoPlayed.current) {
+        hasAutoPlayed.current = true;
         audioRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
       }
     };
@@ -59,12 +64,12 @@ export default function MusicPlayer({ playlist }: MusicPlayerProps) {
       document.removeEventListener("click", tryPlay);
       document.removeEventListener("touchstart", tryPlay);
     };
-  }, [isPlaying]);
+  }, []);
 
-  // 音频加载完成后再尝试一次
+  // 音频加载完成后再尝试一次（仅首次）
   const handleCanPlay = () => {
-    if (!isPlaying && audioRef.current) {
-      audioRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+    if (!isPlaying && !hasAutoPlayed.current && audioRef.current) {
+      audioRef.current.play().then(() => { setIsPlaying(true); hasAutoPlayed.current = true; }).catch(() => {});
     }
   };
 
