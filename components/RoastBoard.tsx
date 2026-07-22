@@ -22,6 +22,8 @@ export default function RoastBoard() {
   const [form, setForm] = useState({ author: "", content: "", imageUrl: "" });
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [toast, setToast] = useState<{ type: "success" | "error"; msg: string } | null>(null);
   const [adminPassword, setAdminPassword] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -43,6 +45,12 @@ export default function RoastBoard() {
     }
   };
 
+  // Toast 提示
+  const showToast = (type: "success" | "error", msg: string) => {
+    setToast({ type, msg });
+    setTimeout(() => setToast(null), 2000);
+  };
+
   // 管理员登录
   const handleAdminLogin = async () => {
     if (!adminPassword.trim()) return;
@@ -59,16 +67,23 @@ export default function RoastBoard() {
 
   // 删除评论
   const handleDeleteComment = async (id: string) => {
-    if (!confirm("确定删除这条评论？")) return;
     try {
-      await fetch("/api/comments", {
+      const res = await fetch("/api/comments", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, password: adminPassword }),
       });
-      fetchComments();
-      setSelectedId(null);
-    } catch {}
+      const data = await res.json();
+      if (data.success) {
+        showToast("success", "已删除");
+        fetchComments();
+        setSelectedId(null);
+      } else {
+        showToast("error", data.error || "删除失败");
+      }
+    } catch {
+      showToast("error", "网络错误");
+    }
   };
 
   // 上传图片
@@ -91,7 +106,8 @@ export default function RoastBoard() {
 
   // 提交评论
   const handleSubmit = async () => {
-    if (!form.content.trim()) return;
+    if (!form.content.trim() || submitting) return;
+    setSubmitting(true);
     const author = form.author.trim() || "";
     try {
       const res = await fetch("/api/comments", {
@@ -109,11 +125,14 @@ export default function RoastBoard() {
         setForm({ author: form.author, content: "", imageUrl: "" });
         setReplyTo(null);
         fetchComments();
+        showToast("success", "发送成功！");
       } else {
-        alert(data.error || "发送失败");
+        showToast("error", data.error || "发送失败");
       }
-    } catch (err) {
-      alert("网络错误，请重试");
+    } catch {
+      showToast("error", "网络错误，请重试");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -140,6 +159,17 @@ export default function RoastBoard() {
 
   return (
     <>
+      {/* Toast 提示 */}
+      {toast && (
+        <div className={`fixed top-20 right-4 z-50 px-4 py-2.5 rounded-xl shadow-lg text-sm font-medium transition-all ${
+          toast.type === "success"
+            ? "bg-green-500 text-white"
+            : "bg-red-500 text-white"
+        }`}>
+          {toast.type === "success" ? "✅" : "❌"} {toast.msg}
+        </div>
+      )}
+
       {/* ===== 漂浮评论区 ===== */}
       <div className="relative w-full" style={{ height: "70vh", minHeight: 500 }}>
         {topLevel.map((comment) => (
@@ -351,10 +381,10 @@ export default function RoastBoard() {
 
         <button
           onClick={handleSubmit}
-          disabled={!form.content.trim()}
+          disabled={!form.content.trim() || submitting}
           className="w-full py-2.5 rounded-xl bg-purple-600 text-white font-medium hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {replyTo ? "发送回复" : "发射吐槽 🚀"}
+          {submitting ? "发送中..." : replyTo ? "发送回复" : "发射吐槽 🚀"}
         </button>
       </div>
 

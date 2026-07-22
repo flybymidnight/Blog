@@ -83,6 +83,29 @@ export default function CloudDrive() {
     loadFiles(currentPath);
   };
 
+  // 下载文件
+  const handleDownload = async (file: { name: string; path: string }) => {
+    try {
+      // 通过 GitHub API 获取文件内容
+      const res = await fetch(`/api/drive/download?path=${encodeURIComponent(file.path)}`);
+      if (!res.ok) {
+        setError("下载失败");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      setError("下载失败");
+    }
+  };
+
   // 删除文件
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -296,13 +319,26 @@ export default function CloudDrive() {
                   </div>
                 </button>
 
-                {item.type === "file" && isLoggedIn && (
-                  <button
-                    onClick={() => setDeleteTarget(item)}
-                    className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 text-sm px-2 py-1 transition-all"
-                  >
-                    删除
-                  </button>
+                {/* 操作按钮 */}
+                {item.type === "file" && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleDownload(item)}
+                      className="opacity-0 group-hover:opacity-100 text-blue-400 hover:text-blue-600 text-sm px-2 py-1 transition-all"
+                      title="下载"
+                    >
+                      ⬇
+                    </button>
+                    {isLoggedIn && (
+                      <button
+                        onClick={() => setDeleteTarget(item)}
+                        className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 text-sm px-2 py-1 transition-all"
+                        title="删除"
+                      >
+                        🗑
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             ))}

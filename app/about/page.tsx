@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { SpeedInsights } from '@vercel/speed-insights/next';
+
 export const metadata: Metadata = {
   title: "关于",
   description: "关于我",
@@ -9,7 +9,6 @@ export default function About() {
   return (
     <div className="max-w-3xl mx-auto px-6 py-16">
       <h1 className="text-3xl font-bold mb-8">关于我</h1>
-      <SpeedInsights />
       <div className="prose prose-zinc dark:prose-invert max-w-none">
         <p>
           我真是人类。
