@@ -1,77 +1,103 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 
 interface MusicPlayerProps {
-  playlist: string[]; // 音频文件名列表
+  playlist: string[];
 }
 
 export default function MusicPlayer({ playlist }: MusicPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
+  const isPlayingRef = useRef(false); // 用 ref 追踪播放状态，避免重渲染影响
+  const hasAutoPlayed = useRef(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [current, setCurrent] = useState(0);
   const [progress, setProgress] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [hasInteracted, setHasInteracted] = useState(false);
-  const hasAutoPlayed = useRef(false); // 是否已经自动播放过
 
   const getDisplayName = (filename: string) => filename.replace(/\.[^.]+$/, "");
 
-  const togglePlay = () => {
+  const togglePlay = useCallback(() => {
     if (!audioRef.current) return;
-    hasAutoPlayed.current = true; // 用户手动操作，阻止自动播放
-    if (isPlaying) { audioRef.current.pause(); }
-    else { audioRef.current.play().catch(() => {}); }
-    setIsPlaying(!isPlaying);
-    setHasInteracted(true);
-  };
+    if (isPlayingRef.current) {
+      audioRef.current.pause();
+      // onPause 事件会同步状态
+    } else {
+      audioRef.current.play().then(() => {
+        // onPlay 事件会同步状态
+      }).catch(() => {});
+    }
+  }, []);
 
-  const handleTimeUpdate = () => {
+  const handleTimeUpdate = useCallback(() => {
     if (!audioRef.current || !audioRef.current.duration) return;
     setProgress((audioRef.current.currentTime / audioRef.current.duration) * 100);
-  };
+  }, []);
 
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSeek = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (!audioRef.current) return;
     audioRef.current.currentTime = (parseFloat(e.target.value) / 100) * audioRef.current.duration;
-  };
+  }, []);
 
-  const nextTrack = () => setCurrent((c) => (c + 1) % playlist.length);
-  const prevTrack = () => setCurrent((c) => (c - 1 + playlist.length) % playlist.length);
+  const playAudio = useCallback(() => {
+    if (!audioRef.current || isPlayingRef.current) return;
+    audioRef.current.play().then(() => {
+      isPlayingRef.current = true;
+      setIsPlaying(true);
+      hasAutoPlayed.current = true; // 只在真正播放成功后才标记
+    }).catch(() => {
+      // 浏览器阻止了，不标记 hasAutoPlayed，等用户点击
+    });
+  }, []);
 
-  // 切歌或首次加载时自动播放
+  const nextTrack = useCallback(() => {
+    setCurrent((c) => {
+      const next = (c + 1) % playlist.length;
+      // 切歌后自动播放（用 setTimeout 确保 src 已更新）
+      setTimeout(() => playAudio(), 100);
+      return next;
+    });
+  }, [playlist.length, playAudio]);
+
+  const prevTrack = useCallback(() => {
+    setCurrent((c) => {
+      const prev = (c - 1 + playlist.length) % playlist.length;
+      setTimeout(() => playAudio(), 100);
+      return prev;
+    });
+  }, [playlist.length, playAudio]);
+
+  // 首次挂载：监听用户点击触发自动播放
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
-    }
-  }, [current]);
-
-  // 监听用户第一次点击页面，触发自动播放（仅一次）
-  useEffect(() => {
-    if (hasAutoPlayed.current) return;
-
     const tryPlay = () => {
-      if (audioRef.current && !hasAutoPlayed.current) {
-        hasAutoPlayed.current = true;
-        audioRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+      if (!hasAutoPlayed.current && audioRef.current) {
+        audioRef.current.play().then(() => {
+          isPlayingRef.current = true;
+          setIsPlaying(true);
+          hasAutoPlayed.current = true;
+        }).catch(() => {});
       }
     };
-    document.addEventListener("click", tryPlay, { once: true });
-    document.addEventListener("touchstart", tryPlay, { once: true });
+    document.addEventListener("click", tryPlay);
+    document.addEventListener("touchstart", tryPlay);
     return () => {
       document.removeEventListener("click", tryPlay);
       document.removeEventListener("touchstart", tryPlay);
     };
   }, []);
 
-  // 音频加载完成后再尝试一次（仅首次）
-  const handleCanPlay = () => {
-    if (!isPlaying && !hasAutoPlayed.current && audioRef.current) {
-      audioRef.current.play().then(() => { setIsPlaying(true); hasAutoPlayed.current = true; }).catch(() => {});
+  // 音频 canplay 事件：尝试播放（不手动设 hasAutoPlayed，由 playAudio 内部处理）
+  const handleCanPlay = useCallback(() => {
+    playAudio();
+  }, [playAudio]);
+
+  // 切歌后恢复播放状态
+  const handleLoadedData = useCallback(() => {
+    if (isPlayingRef.current) {
+      audioRef.current?.play().catch(() => {});
     }
-  };
+  }, []);
 
   if (playlist.length === 0) return null;
 
@@ -79,7 +105,17 @@ export default function MusicPlayer({ playlist }: MusicPlayerProps) {
 
   return (
     <>
-      <audio ref={audioRef} src={src} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)} onEnded={nextTrack} onCanPlay={handleCanPlay} loop={playlist.length === 1} />
+      <audio
+        ref={audioRef}
+        src={src}
+        onTimeUpdate={handleTimeUpdate}
+        onEnded={nextTrack}
+        onCanPlay={handleCanPlay}
+        onLoadedData={handleLoadedData}
+        onPause={() => { isPlayingRef.current = false; setIsPlaying(false); }}
+        onPlay={() => { isPlayingRef.current = true; setIsPlaying(true); }}
+        loop={playlist.length === 1}
+      />
 
       {/* 浮动控制面板 */}
       <AnimatePresence>
@@ -104,7 +140,7 @@ export default function MusicPlayer({ playlist }: MusicPlayerProps) {
             {playlist.length > 1 && (
               <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-700 max-h-40 overflow-y-auto">
                 {playlist.map((file, i) => (
-                  <button key={file} onClick={() => { setCurrent(i); setHasInteracted(true); }}
+                  <button key={file} onClick={() => { setCurrent(i); hasAutoPlayed.current = true; setTimeout(() => playAudio(), 100); }}
                     className={`w-full text-left text-xs py-1.5 px-2 rounded-lg truncate transition-colors ${i === current ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 font-medium" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}>
                     {getDisplayName(file)}
                   </button>
