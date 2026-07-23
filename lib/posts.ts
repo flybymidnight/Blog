@@ -45,73 +45,98 @@ const postsDirectory = path.join(process.cwd(), "posts");
 
 /**
  * 获取所有文章的元数据（列表页用）
- * 返回按日期倒序排列的文章数组
+ * 支持两种结构：
+ *   1. posts/hello_world.md → slug: hello_world
+ *   2. posts/my-trip/index.md → slug: my-trip
  */
 export function getAllPosts(): PostMeta[] {
-  // 1. 读取 posts/ 目录下所有文件名
-  const fileNames = fs.readdirSync(postsDirectory);
+  const entries = fs.readdirSync(postsDirectory, { withFileTypes: true });
+  const allPostsData: PostMeta[] = [];
 
-  // 2. 过滤出 .md 文件，逐个解析
-  const allPostsData = fileNames
-    .filter((fileName) => {
-      const ext = path.extname(fileName).toLowerCase();
-      return SUPPORTED_EXTENSIONS.includes(ext);
-    })
-    .map((fileName) => {
-      const ext = path.extname(fileName).toLowerCase();
-      const slug = fileName.replace(/\.(md|mdx|txt)$/, "");
+  for (const entry of entries) {
+    let filePath: string;
+    let slug: string;
 
-      // 读取文件完整内容
-      const fullPath = path.join(postsDirectory, fileName);
-      const fileContents = fs.readFileSync(fullPath, "utf8");
+    if (entry.isFile() && SUPPORTED_EXTENSIONS.includes(path.extname(entry.name).toLowerCase())) {
+      // 情况 1：顶层 .md 文件
+      filePath = path.join(postsDirectory, entry.name);
+      slug = entry.name.replace(/\.(md|mdx|txt)$/, "");
+    } else if (entry.isDirectory()) {
+      // 情况 2：文件夹内的 index.md
+      const dirPath = path.join(postsDirectory, entry.name);
+      const indexFile = findIndexFile(dirPath);
+      if (!indexFile) continue;
+      filePath = indexFile;
+      slug = entry.name; // 文件夹名作为 slug
+    } else {
+      continue;
+    }
 
-      // 解析 frontmatter（只取元数据，不取正文）
-      const { data } = matter(fileContents);
+    const fileContents = fs.readFileSync(filePath, "utf8");
+    const { data } = matter(fileContents);
+    const stats = readingTime(fileContents);
 
-      // 计算阅读时间
-      const stats = readingTime(fileContents);
-
-      // 组装成 PostMeta 对象
-      return {
-        slug,
-        title: data.title,
-        date: data.date,
-        excerpt: data.excerpt,
-        tags: data.tags || [],  // 如果没写 tags，返回空数组
-        readingTime: formatReadingTime(stats.text),
-      };
+    allPostsData.push({
+      slug,
+      title: data.title ?? slug,
+      date: data.date ?? new Date().toISOString().split("T")[0],
+      excerpt: data.excerpt ?? "",
+      tags: data.tags ?? [],
+      readingTime: formatReadingTime(stats.text),
     });
+  }
 
-  // 3. 按日期倒序排列（最新文章在前）
   return allPostsData.sort((a, b) => (a.date < b.date ? 1 : -1));
+}
+
+// 在文件夹中查找 index.md / index.mdx / index.txt
+function findIndexFile(dirPath: string): string | null {
+  for (const ext of SUPPORTED_EXTENSIONS) {
+    const filePath = path.join(dirPath, `index${ext}`);
+    if (fs.existsSync(filePath)) return filePath;
+  }
+  return null;
 }
 
 /**
  * 获取所有 slug（Next.js 生成静态页面用）
  */
 export function getAllSlugs(): string[] {
-  const fileNames = fs.readdirSync(postsDirectory);
-  return fileNames
-    .filter((fileName) => {
-      const ext = path.extname(fileName).toLowerCase();
-      return SUPPORTED_EXTENSIONS.includes(ext);
-    })
-    .map((fileName) => fileName.replace(/\.(md|mdx|txt)$/, ""));
+  const entries = fs.readdirSync(postsDirectory, { withFileTypes: true });
+  const slugs: string[] = [];
+
+  for (const entry of entries) {
+    if (entry.isFile() && SUPPORTED_EXTENSIONS.includes(path.extname(entry.name).toLowerCase())) {
+      slugs.push(entry.name.replace(/\.(md|mdx|txt)$/, ""));
+    } else if (entry.isDirectory()) {
+      const dirPath = path.join(postsDirectory, entry.name);
+      if (findIndexFile(dirPath)) slugs.push(entry.name);
+    }
+  }
+
+  return slugs;
 }
 
 /**
  * 根据 slug 获取单篇文章完整数据（详情页用）
  */
 export async function getPostBySlug(slug: string): Promise<Post> {
-  // 尝试按优先级查找文件：.md > .mdx > .txt
+  // 尝试两种路径：
+  // 1. posts/slug.md（平铺文件）
+  // 2. posts/slug/index.md（文件夹文章）
   let fullPath = "";
+
   for (const ext of SUPPORTED_EXTENSIONS) {
-    const testPath = path.join(postsDirectory, `${slug}${ext}`);
-    if (fs.existsSync(testPath)) {
-      fullPath = testPath;
-      break;
-    }
+    const flatPath = path.join(postsDirectory, `${slug}${ext}`);
+    if (fs.existsSync(flatPath)) { fullPath = flatPath; break; }
   }
+
+  if (!fullPath) {
+    const dirPath = path.join(postsDirectory, slug);
+    const indexFile = findIndexFile(dirPath);
+    if (indexFile) fullPath = indexFile;
+  }
+
   if (!fullPath) {
     throw new Error(`找不到文章: ${slug}`);
   }
@@ -119,10 +144,15 @@ export async function getPostBySlug(slug: string): Promise<Post> {
   const ext = path.extname(fullPath).toLowerCase();
   const fileContents = fs.readFileSync(fullPath, "utf8");
 
-  // 纯文本文件不需要解析 frontmatter
   const isPlainText = ext === ".txt";
   const data = isPlainText ? {} : matter(fileContents).data;
   const content = isPlainText ? fileContents : matter(fileContents).content;
+
+  // 处理相对路径图片：./xxx.jpg → /api/posts-image/slug/xxx.jpg
+  const processedContent = content.replace(
+    /!\[([^\]]*)\]\(\.\/([^)]+)\)/g,
+    `![$1](/api/posts-image/${slug}/$2)`
+  );
 
   // 构建完整的 unified 处理管道
   // Markdown → remark 解析 → remark 插件 → remark-rehype → rehype 插件 → HTML 字符串
@@ -137,7 +167,7 @@ export async function getPostBySlug(slug: string): Promise<Post> {
       keepBackground: false,
     })
     .use(rehypeStringify)                // 7. HTML AST → 字符串
-    .process(content);
+    .process(processedContent);
 
   const contentHtml = result.toString();
   const stats = readingTime(content);

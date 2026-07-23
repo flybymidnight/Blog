@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" viewBox="0 0 400 200">
+  <rect width="400" height="200" fill="#6366f1" rx="16"/>
+  <text x="200" y="90" font-family="Arial" font-size="24" fill="white" text-anchor="middle">📸 示例图片</text>
+  <text x="200" y="130" font-family="Arial" font-size="16" fill="#c4b5fd" text-anchor="middle">来自 posts/test-folder-post/test.svg</text>
+</svg>

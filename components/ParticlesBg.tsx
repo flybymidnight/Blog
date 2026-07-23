@@ -59,6 +59,7 @@ export default function ParticlesBg() {
   return (
     <ParticlesProvider init={initParticles}>
       <Particles
+        key={resolvedTheme} // 主题变化时强制重新渲染粒子
         id="tsparticles"
         className="absolute inset-0"
         options={options}

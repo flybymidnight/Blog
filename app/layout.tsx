@@ -10,6 +10,8 @@ import { ClickCounterProvider } from "@/components/ClickCounter";
 import ConfettiEffect from "@/components/ConfettiEffect";
 import MusicPlayer from "@/components/MusicPlayer";
 import BackToTop from "@/components/BackToTop";
+import NavigationProgress from "@/components/NavigationProgress";
+import SearchBar from "@/components/SearchBar";
 import { getMusicFiles } from "@/lib/music";
 import "katex/dist/katex.min.css";
 import "./globals.css";
@@ -45,6 +47,7 @@ const navLinks = [
   { href: "/video", label: "视频" },
   { href: "/roast", label: "吐槽板" },
   { href: "/drive", label: "云盘" },
+  { href: "/stats", label: "统计" },
   { href: "/about", label: "关于" },
 ];
 
@@ -61,17 +64,21 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning // next-themes 会在客户端修改 class，需要抑制警告
     >
-      <body className="min-h-full flex flex-col bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
+      <body className="flex flex-col" style={{ minHeight: '100%' }}>
         <Providers>
         <ClickCounterProvider>
+        <NavigationProgress />
         <ConfettiEffect />
         {/* ===== 导航栏 ===== */}
         <header className="sticky top-0 z-50 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-sm">
           <nav className="max-w-3xl mx-auto px-6 h-16 flex items-center justify-between">
             {/* 左侧：动画 Logo */}
             <Logo />
-            {/* 右侧：导航链接 + 主题切换 */}
-            <div className="flex items-center gap-6">
+            {/* 右侧：搜索 + 导航链接 + 主题切换 */}
+            <div className="flex items-center gap-4">
+              <div className="hidden md:block w-48">
+                <SearchBar />
+              </div>
               {navLinks.map((link) => (
                 <Link
                   key={link.href}

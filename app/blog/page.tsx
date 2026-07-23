@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getAllPosts } from "@/lib/posts";
+import SearchBar from "@/components/SearchBar";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -13,7 +14,12 @@ export default function BlogList() {
   return (
     <div className="max-w-3xl mx-auto px-6 py-16">
       <h1 className="text-3xl font-bold mb-2">所有文章</h1>
-      <p className="text-zinc-500 mb-12">共 {posts.length} 篇</p>
+      <p className="text-zinc-500 mb-6">共 {posts.length} 篇</p>
+
+      {/* 搜索栏 */}
+      <div className="mb-10">
+        <SearchBar />
+      </div>
 
       <div className="flex flex-col gap-10">
         {posts.map((post) => (

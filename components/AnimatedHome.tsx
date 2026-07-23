@@ -42,7 +42,7 @@ export default function AnimatedHome({ posts }: { posts: PostMeta[] }) {
   return (
     <>
       {/* Hero 全屏区域 */}
-      <section className="relative h-screen flex items-center justify-center overflow-hidden bg-zinc-100 dark:bg-zinc-950 transition-colors duration-500">
+      <section className="relative h-screen flex items-center justify-center overflow-hidden bg-zinc-100 dark:bg-zinc-950">
         <ParticlesBg />
 
         {/* 流星特效层 */}
